@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "api-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+  - package-ecosystem: "pip"
+    directory: "converter-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+  - package-ecosystem: "docker"
+    directory: "api-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+  - package-ecosystem: "docker"
+    directory: "converter-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+  - package-ecosystem: "docker"
+    directory: "fetcher-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
