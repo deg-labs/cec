@@ -1,4 +1,4 @@
-FROM denoland/deno:2.5.6
+FROM denoland/deno:2.8.3
 
 RUN apt-get update && \
     apt-get install -y curl && \
