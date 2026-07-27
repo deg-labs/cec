@@ -1,7 +1,11 @@
 import time
 import argparse
 import sys
+import logging
+from app import logging_config
 from app.data_processor import process_etfs
+
+logger = logging.getLogger(__name__)
 
 def run_scheduler():
     """
@@ -13,17 +17,17 @@ def run_scheduler():
     args = parser.parse_args()
 
     if args.dry_run:
-        print("--- Performing a dry-run health check for CSV conversion ---")
+        logger.info("Performing a dry-run health check for CSV conversion")
         if process_etfs(dry_run=True):
-            print("Dry-run successful: All configured ETF data could be fetched and parsed.")
+            logger.info("Dry-run successful: all configured ETF data could be fetched and parsed")
             sys.exit(0)
         else:
-            print("Dry-run failed: Some ETF data could not be fetched or parsed.")
+            logger.error("Dry-run failed: some ETF data could not be fetched or parsed")
             sys.exit(1)
     else:
         while True:
             process_etfs()
-            print(f"Sleeping for {args.interval} seconds...")
+            logger.info("Sleeping for %s seconds", args.interval)
             time.sleep(args.interval)
 
 if __name__ == "__main__":

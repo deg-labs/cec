@@ -1,9 +1,12 @@
 import os
+import logging
 import sys
 from app import config
 from app import fetcher_client
 from app.html_converter import html_to_dataframe
 from app import file_manager
+
+logger = logging.getLogger(__name__)
 
 def process_etfs(dry_run: bool = False) -> bool:
     """
@@ -11,22 +14,22 @@ def process_etfs(dry_run: bool = False) -> bool:
     Returns True if all conversions were successful, False otherwise.
     If dry_run is True, no CSV files are actually written.
     """
-    print(f"=== Starting ETF CSV Generation Cycle (dry_run={dry_run}) ===")
+    logger.info("Starting ETF CSV generation cycle dry_run=%s", dry_run)
     file_manager.ensure_csv_directory_exists(config.CSV_DIR)
     all_successful = True
 
     urls_to_process = config.URLS if not dry_run else {k: v for k, v in config.URLS.items() if v}
 
     if dry_run and not urls_to_process:
-        print("No URLs configured for dry-run. Considering this a failure.")
+        logger.error("No URLs configured for dry-run")
         return False
 
     for coin_type, url in urls_to_process.items():
         if not url:
-            print(f"Skipping {coin_type.upper()} as its URL is not configured.")
+            logger.warning("Skipping %s because its URL is not configured", coin_type.upper())
             all_successful = False
             continue
-        print(f"--- Processing {coin_type.upper()} ---")
+        logger.info("Processing %s", coin_type.upper())
         html_content = fetcher_client.fetch_html_from_deno_api(url)
         if html_content:
             output_filename = os.path.join(config.CSV_DIR, f"etf_{coin_type}.csv")
@@ -37,11 +40,11 @@ def process_etfs(dry_run: bool = False) -> bool:
                         file_manager.save_dataframe_to_csv(df, output_filename)
                 else:
                     all_successful = False
-            except Exception as e:
-                print(f"Error converting {coin_type.upper()} HTML to CSV: {e}")
+            except Exception:
+                logger.exception("Error converting %s HTML to CSV", coin_type.upper())
                 all_successful = False
         else:
-            print(f"Skipping {coin_type.upper()} due to failed HTML fetch.")
+            logger.warning("Skipping %s due to failed HTML fetch", coin_type.upper())
             all_successful = False
-    print("=== Cycle Completed ===")
+    logger.info("ETF CSV generation cycle completed")
     return all_successful

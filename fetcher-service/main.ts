@@ -1,7 +1,8 @@
 // cec/deno_api/main.ts
 import { serve } from "https://deno.land/std@0.140.0/http/server.ts";
+import { logger } from "./logger.ts";
 
-console.log("Deno HTML fetcher API starting...");
+logger.info("Deno HTML fetcher API starting");
 
 serve(async (req) => {
   const url = new URL(req.url);
@@ -12,7 +13,7 @@ serve(async (req) => {
       return new Response("Missing 'url' query parameter", { status: 400 });
     }
     try {
-      console.log(`Fetching ${targetUrl}`);
+      logger.info(`Fetching ${targetUrl}`);
       const headers = new Headers();
       if (userAgent) {
         headers.set("User-Agent", userAgent);
@@ -25,8 +26,9 @@ serve(async (req) => {
       const source = await resp.text();
       return new Response(source, { headers: { "Content-Type": "text/html" } });
     } catch (e) {
-        console.error(`Error fetching URL: ${targetUrl}`, e);
-        return new Response(e.message, { status: 500 });
+        logger.error(`Error fetching URL: ${targetUrl}`, e);
+        const message = e instanceof Error ? e.message : "Unexpected fetch error";
+        return new Response(message, { status: 500 });
     }
   } else if (url.pathname === "/health") {
     return new Response("OK", { status: 200 });
@@ -34,4 +36,4 @@ serve(async (req) => {
   return new Response("Not Found", { status: 404 });
 }, { port: 8000 });
 
-console.log("Deno HTML fetcher API running on http://localhost:8000");
+logger.info("Deno HTML fetcher API running on http://localhost:8000");
