@@ -6,7 +6,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY main.ts .
+COPY main.ts logger.ts ./
 
 RUN deno cache main.ts
 

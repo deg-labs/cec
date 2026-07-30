@@ -1,5 +1,8 @@
 import pandas as pd
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 def html_to_dataframe(html_content: str, coin_type: str) -> pd.DataFrame | None:
     """
@@ -12,7 +15,7 @@ def html_to_dataframe(html_content: str, coin_type: str) -> pd.DataFrame | None:
         if coin_type == 'btc':
             tables = pd.read_html(io.StringIO(html_content), flavor='lxml', attrs={'class': 'etf'})
             if not tables:
-                print(f"No table with class 'etf' found in the provided HTML content for BTC.")
+                logger.warning("No ETF table found in the provided HTML content for BTC")
                 return None
             df = tables[0].copy()
 
@@ -23,7 +26,7 @@ def html_to_dataframe(html_content: str, coin_type: str) -> pd.DataFrame | None:
         elif coin_type == 'eth' or coin_type == 'sol':
             tables = pd.read_html(io.StringIO(html_content), flavor='lxml', attrs={'class': 'etf'}, header=1)
             if not tables:
-                print(f"No table with class 'etf' found in the provided HTML content for {coin_type.upper()}.")
+                logger.warning("No ETF table found in the provided HTML content for %s", coin_type.upper())
                 return None
             df = tables[0].copy()
 
@@ -34,7 +37,7 @@ def html_to_dataframe(html_content: str, coin_type: str) -> pd.DataFrame | None:
                 if coin_type == 'sol':
                     df = df[~df['Date'].astype(str).str.contains('Staking', na=False)]
         else:
-            print(f"Error: Invalid coin type '{coin_type}'. Please use 'btc', 'eth', or 'sol'.")
+            logger.error("Invalid coin type %r; use btc, eth, or sol", coin_type)
             return None
 
         df.dropna(how='all', inplace=True)
@@ -63,6 +66,6 @@ def html_to_dataframe(html_content: str, coin_type: str) -> pd.DataFrame | None:
         
         return df
 
-    except Exception as e:
-        print(f"An error occurred during HTML to DataFrame conversion for {coin_type.upper()}: {e}")
+    except Exception:
+        logger.exception("An error occurred during HTML to DataFrame conversion for %s", coin_type.upper())
         return None
