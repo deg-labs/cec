@@ -37,7 +37,8 @@ def process_etfs(dry_run: bool = False) -> bool:
                 df = html_to_dataframe(html_content, coin_type)
                 if df is not None:
                     if not dry_run:
-                        file_manager.save_dataframe_to_csv(df, output_filename)
+                        if not file_manager.save_dataframe_to_csv(df, output_filename):
+                            all_successful = False
                 else:
                     all_successful = False
             except Exception:
