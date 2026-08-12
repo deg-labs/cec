@@ -4,6 +4,7 @@ from typing import Optional, List
 
 from app.services.csv_reader import load_and_clean_data
 from app.services.data_filter import format_response
+from app.services.errors import MalformedDataError
 from app.utils.date_utils import parse_date_param
 from app.models.etf_data import ETFRecord
 from app.models.response import ETFDataResponse
@@ -32,7 +33,10 @@ async def get_etf_data(
     if coin_type not in allowed_coins:
         raise HTTPException(status_code=400, detail=f"Invalid coin type. Please use one of {allowed_coins}.")
 
-    df = load_and_clean_data(coin_type, include_seed=False)
+    try:
+        df = load_and_clean_data(coin_type, include_seed=False)
+    except MalformedDataError as exc:
+        raise HTTPException(status_code=422, detail="CSV data is malformed.") from exc
     if df is None:
         raise HTTPException(status_code=404, detail=f"Data for '{coin_type}' not found.")
 
@@ -48,7 +52,10 @@ async def get_etf_data(
     df = df.iloc[offset : offset + limit]
 
     # Format and return
-    json_output = format_response(df)
+    try:
+        json_output = format_response(df)
+    except MalformedDataError as exc:
+        raise HTTPException(status_code=422, detail="CSV data is malformed.") from exc
     return json_output
 
 
@@ -66,7 +73,10 @@ async def get_latest_etf_data(coin_type: str) -> ETFRecord: # Updated return typ
     if coin_type not in allowed_coins:
         raise HTTPException(status_code=400, detail=f"Invalid coin type. Please use one of {allowed_coins}.")
 
-    df = load_and_clean_data(coin_type, include_seed=False)
+    try:
+        df = load_and_clean_data(coin_type, include_seed=False)
+    except MalformedDataError as exc:
+        raise HTTPException(status_code=422, detail="CSV data is malformed.") from exc
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail=f"No data available for '{coin_type}'.")
 
@@ -74,7 +84,10 @@ async def get_latest_etf_data(coin_type: str) -> ETFRecord: # Updated return typ
     latest_df = df.head(1)
     
     # Format and return
-    json_output = format_response(latest_df)
+    try:
+        json_output = format_response(latest_df)
+    except MalformedDataError as exc:
+        raise HTTPException(status_code=422, detail="CSV data is malformed.") from exc
     # The result is a list with one item, so we return the item directly
     return json_output[0]
 
