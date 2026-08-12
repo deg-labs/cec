@@ -19,8 +19,8 @@ router = APIRouter()
 )
 async def get_etf_data(
     coin_type: str,
-    limit: Optional[int] = Query(30, description="Number of recent records to return."),
-    offset: Optional[int] = Query(0, description="Offset for pagination."),
+    limit: Optional[int] = Query(30, ge=1, le=100, description="Number of recent records to return (1-100)."),
+    offset: Optional[int] = Query(0, ge=0, description="Offset for pagination."),
     from_date: Optional[str] = Query(None, alias="from", description="Start date (YYYY-MM-DD)."),
     to_date: Optional[str] = Query(None, alias="to", description="End date (YYYY-MM-DD)."),
 ) -> List[ETFRecord]:
