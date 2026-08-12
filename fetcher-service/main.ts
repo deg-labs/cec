@@ -6,7 +6,17 @@ const ALLOWED_FETCH_HOSTS = (Deno.env.get("ALLOWED_FETCH_HOSTS") ?? "farside.co.
   .split(",")
   .map((host) => host.trim().toLowerCase())
   .filter((host) => host.length > 0);
-const MAX_FETCH_SIZE_BYTES = Number(Deno.env.get("MAX_FETCH_SIZE_BYTES") ?? 1024 * 1024);
+function parsePositiveIntegerEnv(name: string, defaultValue: number): number {
+  const raw = Deno.env.get(name);
+  if (!raw || raw.trim() === "") return defaultValue;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a finite positive integer`);
+  }
+  return value;
+}
+
+const MAX_FETCH_SIZE_BYTES = parsePositiveIntegerEnv("MAX_FETCH_SIZE_BYTES", 1024 * 1024);
 const MAX_REDIRECTS = 5;
 
 class TargetValidationError extends Error {}
@@ -48,19 +58,19 @@ function isPrivateIp(ip: string): boolean {
 }
 
 async function resolveHostIps(hostname: string): Promise<string[]> {
-  const results: string[] = [];
+  const results = new Set<string>();
   for (const type of ["A", "AAAA"] as const) {
     try {
       const records = await Deno.resolveDns(hostname, type);
-      results.push(...records);
+      for (const record of records) results.add(record);
     } catch {
       // A host may only have one record type; ignore the other.
     }
   }
-  return results;
+  return [...results];
 }
 
-async function validateTarget(url: URL): Promise<void> {
+async function validateTarget(url: URL): Promise<string[]> {
   if (url.protocol !== "https:") {
     throw new TargetValidationError("Only https URLs are allowed");
   }
@@ -70,6 +80,9 @@ async function validateTarget(url: URL): Promise<void> {
     );
   }
   const ips = await resolveHostIps(url.hostname);
+  if (ips.length === 0) {
+    throw new TargetValidationError(`Host '${url.hostname}' could not be resolved`);
+  }
   for (const ip of ips) {
     if (isPrivateIp(ip)) {
       throw new TargetValidationError(
@@ -77,6 +90,38 @@ async function validateTarget(url: URL): Promise<void> {
       );
     }
   }
+  return ips;
+}
+
+type ResolvedResponse = { response: Response; client: Deno.HttpClient };
+
+async function fetchAtResolvedIp(
+  url: URL,
+  ips: string[],
+  headers: Headers,
+): Promise<ResolvedResponse> {
+  let lastError: unknown;
+  for (const ip of ips) {
+    const client = Deno.createHttpClient({
+      // Keep the URL hostname for TLS SNI/certificate validation, but force
+      // the TCP connection to the IP address checked above.
+      proxy: { transport: "tcp", hostname: ip, port: 443 },
+    });
+    try {
+      const response = await fetch(url, {
+        headers,
+        redirect: "manual",
+        client,
+      });
+      return { response, client };
+    } catch (error) {
+      client.close();
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to connect to resolved host");
 }
 
 async function readBodyWithLimit(resp: Response, limitBytes: number): Promise<string> {
@@ -109,7 +154,7 @@ async function fetchHtml(targetUrl: string): Promise<string> {
   } catch {
     throw new TargetValidationError("Invalid URL");
   }
-  await validateTarget(currentUrl);
+  let resolvedIps = await validateTarget(currentUrl);
 
   const userAgent = Deno.env.get("USER_AGENT");
 
@@ -118,26 +163,35 @@ async function fetchHtml(targetUrl: string): Promise<string> {
     if (userAgent) {
       headers.set("User-Agent", userAgent);
     }
-    const resp = await fetch(currentUrl, { headers, redirect: "manual" });
+    const { response: resp, client } = await fetchAtResolvedIp(
+      currentUrl,
+      resolvedIps,
+      headers,
+    );
 
     if (resp.status >= 300 && resp.status < 400) {
       const location = resp.headers.get("location");
       await resp.body?.cancel();
+      client.close();
       if (!location) {
         throw new Error("Redirect response without a Location header");
       }
       currentUrl = new URL(location, currentUrl);
-      await validateTarget(currentUrl);
+      resolvedIps = await validateTarget(currentUrl);
       continue;
     }
 
     if (!resp.ok) {
       await resp.body?.cancel();
+      client.close();
       throw new Error(`Failed to fetch: ${resp.status} ${resp.statusText}`);
     }
 
-    const source = await readBodyWithLimit(resp, MAX_FETCH_SIZE_BYTES);
-    return source;
+    try {
+      return await readBodyWithLimit(resp, MAX_FETCH_SIZE_BYTES);
+    } finally {
+      client.close();
+    }
   }
   throw new Error("Too many redirects");
 }
